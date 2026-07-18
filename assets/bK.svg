@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 440" width="240" height="440">
+
+  <defs>
+    <linearGradient id="bodyGradblack_king" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4a3a2c"/><stop offset="45%" stop-color="#2c2118"/><stop offset="100%" stop-color="#150f0a"/>
+    </linearGradient>
+    <linearGradient id="shadowGradblack_king" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#241a12"/><stop offset="100%" stop-color="#0a0705"/>
+    </linearGradient>
+    <linearGradient id="goldGradblack_king" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f0d878"/>
+      <stop offset="50%" stop-color="#c9a227"/>
+      <stop offset="100%" stop-color="#f0d878"/>
+    </linearGradient>
+    <radialGradient id="vignetteblack_king" cx="50%" cy="35%" r="75%">
+      <stop offset="0%" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.18"/>
+    </radialGradient>
+  </defs>
+
+  <g>
+
+  <!-- Base plinth -->
+  <ellipse cx="120" cy="400" rx="88" ry="20" fill="url(#shadowGradblack_king)" stroke="#0a0705" stroke-width="3"/>
+  <path d="M 46 400 Q 46 355 60 345 L 180 345 Q 194 355 194 400 Z"
+        fill="url(#bodyGradblack_king)" stroke="#0a0705" stroke-width="3"/>
+  <ellipse cx="120" cy="345" rx="60" ry="13" fill="url(#shadowGradblack_king)" stroke="#0a0705" stroke-width="2.5"/>
+
+  <!-- Gold base ring -->
+  <ellipse cx="120" cy="336" rx="52" ry="10" fill="none" stroke="url(#goldGradblack_king)" stroke-width="4"/>
+
+  <!-- lower stem taper -->
+  <path d="M 88 336 Q 84 300 103.0 330
+           L 137.0 330
+           Q 156 300 152 336 Z"
+        fill="url(#bodyGradblack_king)" stroke="#0a0705" stroke-width="2.5"/>
+
+  <!-- collar ring -->
+  <ellipse cx="120" cy="330" rx="21.0" ry="7" fill="none" stroke="url(#goldGradblack_king)" stroke-width="3.5"/>
+
+  <!-- main stem -->
+  <path d="M 107.0 330 Q 105.0 260.0 107.0 190
+           L 133.0 190
+           Q 135.0 260.0 133.0 330 Z"
+        fill="url(#bodyGradblack_king)" stroke="#0a0705" stroke-width="2.5"/>
+
+  <!-- upper collar -->
+  <ellipse cx="120" cy="190" rx="18.0" ry="6.5" fill="none" stroke="url(#goldGradblack_king)" stroke-width="3.5"/>
+
+
+  <ellipse cx="120" cy="190" rx="34" ry="9" fill="url(#shadowGradblack_king)" stroke="#0a0705" stroke-width="2.5"/>
+  <path d="M 90 190 Q 76 152 88 118 L 152 118 Q 164 152 150 190 Z"
+        fill="url(#bodyGradblack_king)" stroke="#0a0705" stroke-width="2.5"/>
+  <path d="M 82 108 L 92 68 L 104 92 L 120 58 L 136 92 L 148 68 L 158 108 Z" fill="url(#bodyGradblack_king)" stroke="#0a0705" stroke-width="2.8" stroke-linejoin="round"/>
+  <ellipse cx="120" cy="110" rx="42" ry="8" fill="none" stroke="url(#goldGradblack_king)" stroke-width="3"/>
+  <!-- cross finial -->
+  <rect x="114" y="26" width="12" height="34" fill="url(#goldGradblack_king)" stroke="#0a0705" stroke-width="1.5"/>
+  <rect x="102" y="34" width="36" height="11" fill="url(#goldGradblack_king)" stroke="#0a0705" stroke-width="1.5"/>
+
+  </g>
+  <rect x="0" y="0" width="240" height="440" fill="url(#vignetteblack_king)"/>
+</svg>

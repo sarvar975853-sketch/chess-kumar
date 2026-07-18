@@ -1,0 +1,27 @@
+# Build directories
+build/
+build_app/
+cmake-build-*/
+CMakeFiles/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Compiled binaries
+*.o
+*.d
+*.a
+*.dylib
+*.so
+*.exe
+
+# Generated files
+assets/app_icon.png
+assets/chess.icns
+Info.plist
+*.zip

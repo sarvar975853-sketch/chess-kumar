@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 440" width="240" height="440">
+
+  <defs>
+    <linearGradient id="bodyGradwhite_pawn" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fdf6e3"/><stop offset="45%" stop-color="#f1e4c3"/><stop offset="100%" stop-color="#d9c393"/>
+    </linearGradient>
+    <linearGradient id="shadowGradwhite_pawn" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e8d6a8"/><stop offset="100%" stop-color="#c4a86a"/>
+    </linearGradient>
+    <linearGradient id="goldGradwhite_pawn" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e6c667"/>
+      <stop offset="50%" stop-color="#b8860b"/>
+      <stop offset="100%" stop-color="#e6c667"/>
+    </linearGradient>
+    <radialGradient id="vignettewhite_pawn" cx="50%" cy="35%" r="75%">
+      <stop offset="0%" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.18"/>
+    </radialGradient>
+  </defs>
+
+  <g>
+
+  <!-- Base plinth -->
+  <ellipse cx="120" cy="400" rx="88" ry="20" fill="url(#shadowGradwhite_pawn)" stroke="#8a6d3b" stroke-width="3"/>
+  <path d="M 46 400 Q 46 355 60 345 L 180 345 Q 194 355 194 400 Z"
+        fill="url(#bodyGradwhite_pawn)" stroke="#8a6d3b" stroke-width="3"/>
+  <ellipse cx="120" cy="345" rx="60" ry="13" fill="url(#shadowGradwhite_pawn)" stroke="#8a6d3b" stroke-width="2.5"/>
+
+  <!-- Gold base ring -->
+  <ellipse cx="120" cy="336" rx="52" ry="10" fill="none" stroke="url(#goldGradwhite_pawn)" stroke-width="4"/>
+
+  <!-- lower stem taper -->
+  <path d="M 88 336 Q 84 300 103.0 330
+           L 137.0 330
+           Q 156 300 152 336 Z"
+        fill="url(#bodyGradwhite_pawn)" stroke="#8a6d3b" stroke-width="2.5"/>
+
+  <!-- collar ring -->
+  <ellipse cx="120" cy="330" rx="21.0" ry="7" fill="none" stroke="url(#goldGradwhite_pawn)" stroke-width="3.5"/>
+
+  <!-- main stem -->
+  <path d="M 107.0 330 Q 105.0 260.0 107.0 190
+           L 133.0 190
+           Q 135.0 260.0 133.0 330 Z"
+        fill="url(#bodyGradwhite_pawn)" stroke="#8a6d3b" stroke-width="2.5"/>
+
+  <!-- upper collar -->
+  <ellipse cx="120" cy="190" rx="18.0" ry="6.5" fill="none" stroke="url(#goldGradwhite_pawn)" stroke-width="3.5"/>
+
+
+  <!-- collar under head -->
+  <ellipse cx="120" cy="190" rx="30" ry="8" fill="url(#shadowGradwhite_pawn)" stroke="#8a6d3b" stroke-width="2.5"/>
+  <path d="M 96 190 Q 82 150 92 128 Q 100 112 120 108 Q 140 112 148 128 Q 158 150 144 190 Z"
+        fill="url(#bodyGradwhite_pawn)" stroke="#8a6d3b" stroke-width="2.5"/>
+  <circle cx="120" cy="88" r="34" fill="url(#bodyGradwhite_pawn)" stroke="#8a6d3b" stroke-width="3"/>
+  <circle cx="108" cy="76" r="9" fill="#ffffff" opacity="0.25"/>
+  <circle cx="120" cy="88" r="34" fill="none" stroke="url(#goldGradwhite_pawn)" stroke-width="1.5" opacity="0.6"/>
+
+  </g>
+  <rect x="0" y="0" width="240" height="440" fill="url(#vignettewhite_pawn)"/>
+</svg>
