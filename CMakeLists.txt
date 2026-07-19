@@ -69,16 +69,11 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE
-    ${SFML_INCLUDE_DIR}
     src
 )
 
 if(WIN32)
     set_target_properties(${PROJECT_NAME} PROPERTIES WIN32_EXECUTABLE TRUE)
-elseif(APPLE AND SFML_FRAMEWORK_DIR)
-    set_target_properties(${PROJECT_NAME} PROPERTIES
-        BUILD_RPATH "${SFML_FRAMEWORK_DIR}"
-    )
 endif()
 
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD

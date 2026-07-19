@@ -68,6 +68,7 @@ private:
     bool socketBlocking = false;
 
     unsigned short discoveryPort = DEFAULT_PORT;
+    sf::IpAddress broadcastAddr = sf::IpAddress::Broadcast;
     sf::Clock broadcastClock;
     static const float BROADCAST_INTERVAL;
 
@@ -80,7 +81,7 @@ private:
 
     void sendBroadcast();
     void receiveDiscoveryReplies();
-    void processUDPMessage(const std::string& msg, const sf::IpAddress& sender);
+    void processUDPMessage(const std::string& msg, const sf::IpAddress& sender, unsigned short senderPort);
     void processTCPMessage(const std::string& msg);
     void sendTCPString(const std::string& msg);
     void receiveTCPData();

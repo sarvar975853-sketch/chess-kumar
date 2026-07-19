@@ -101,8 +101,8 @@ void Menu::buildBotSelect() {
     currentScreen = SCREEN_BOT_SELECT;
     items.push_back({"Choose Your Opponent", "", {}, OPTION_NONE, false});
 
-    // Play as color toggle at top
-    items.push_back({"Play as: " + std::string(playAsBlack ? "Black" : "White"), "Click to switch your color", {}, OPTION_PLAY_AS_BLACK, false});
+    // Play as color toggle - visually distinct
+    items.push_back({playAsBlack ? "Playing as: Black" : "Playing as: White", "Click to switch color", {}, OPTION_PLAY_AS_BLACK, false});
 
     struct BotInfo { std::string name; std::string desc; MenuOption opt; };
     BotInfo bots[] = {
@@ -261,6 +261,11 @@ void Menu::updateBounds() {
             continue;
         }
         int y = startY + (int)i * 72;
+        // Extra spacing around Play As toggle in bot select screen
+        if (currentScreen == SCREEN_BOT_SELECT && items[i].option == OPTION_PLAY_AS_BLACK)
+            y += 16;
+        if (currentScreen == SCREEN_BOT_SELECT && i > 1 && items[i - 1].option == OPTION_PLAY_AS_BLACK)
+            y += 16;
         items[i].bounds = sf::FloatRect({(float)(cx - 190), (float)(y - 24)}, {380.0f, 48.0f});
     }
 }
@@ -649,6 +654,34 @@ void Menu::draw(sf::RenderWindow& window) {
 
         drawShadow(window, item.bounds);
         drawCard(window, item.bounds, item.hovered);
+
+        // Special styling for "Play As" toggle
+        if (item.option == OPTION_PLAY_AS_BLACK) {
+            sf::Color playAsBg = item.hovered
+                ? sf::Color(accent.r, accent.g, accent.b, 40)
+                : sf::Color(accent.r, accent.g, accent.b, 20);
+            drawRoundedRect(window, item.bounds.position.x + 1, item.bounds.position.y + 1,
+                            item.bounds.size.x - 2, item.bounds.size.y - 2,
+                            CORNER_R, playAsBg);
+
+            sf::RectangleShape playAsBorder(sf::Vector2f(item.bounds.size.x - 4, item.bounds.size.y - 4));
+            playAsBorder.setFillColor(sf::Color::Transparent);
+            playAsBorder.setOutlineColor(item.hovered ? accent : sf::Color(accent.r, accent.g, accent.b, 120));
+            playAsBorder.setOutlineThickness(1.5f);
+            playAsBorder.setPosition(sf::Vector2f(item.bounds.position.x + 2, item.bounds.position.y + 2));
+            window.draw(playAsBorder);
+
+            sf::Text titleT = makeText(item.text, 16, item.hovered ? accent : textColor, false);
+            titleT.setPosition(sf::Vector2f(item.bounds.position.x + 18, item.bounds.position.y + 8));
+            window.draw(titleT);
+
+            if (!item.subtitle.empty()) {
+                sf::Text subT = makeText(item.subtitle, 11, muted, false);
+                subT.setPosition(sf::Vector2f(item.bounds.position.x + 20, item.bounds.position.y + 28));
+                window.draw(subT);
+            }
+            continue;
+        }
 
         sf::Text titleT = makeText(item.text, currentScreen == SCREEN_DIFFICULTY ? 14 : 18,
                                    item.hovered ? accent : textColor, false);

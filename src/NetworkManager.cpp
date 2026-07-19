@@ -5,7 +5,40 @@
 #include <sstream>
 #include <cstring>
 
+#ifdef __APPLE__
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <ifaddrs.h>
+#include <net/if.h>
+#endif
+
 const float NetworkManager::BROADCAST_INTERVAL = 2.0f;
+
+static sf::IpAddress getSubnetBroadcast() {
+#ifdef __APPLE__
+    struct ifaddrs* ifap = nullptr;
+    if (getifaddrs(&ifap) == 0) {
+        for (struct ifaddrs* ifa = ifap; ifa != nullptr; ifa = ifa->ifa_next) {
+            if (ifa->ifa_addr == nullptr) continue;
+            if (ifa->ifa_addr->sa_family != AF_INET) continue;
+            if (ifa->ifa_flags & IFF_LOOPBACK) continue;
+            if (!(ifa->ifa_flags & IFF_BROADCAST)) continue;
+
+            auto* addr = reinterpret_cast<struct sockaddr_in*>(ifa->ifa_addr);
+            auto* bcast = reinterpret_cast<struct sockaddr_in*>(ifa->ifa_broadaddr);
+            if (addr && bcast) {
+                char ipBuf[INET_ADDRSTRLEN];
+                inet_ntop(AF_INET, &bcast->sin_addr, ipBuf, sizeof(ipBuf));
+                freeifaddrs(ifap);
+                return sf::IpAddress::fromString(std::string(ipBuf)).value_or(sf::IpAddress::Broadcast);
+            }
+        }
+        freeifaddrs(ifap);
+    }
+#endif
+    return sf::IpAddress::Broadcast;
+}
 
 NetworkManager::NetworkManager() {
     std::srand(static_cast<unsigned>(std::time(nullptr)));
@@ -28,19 +61,27 @@ void NetworkManager::setState(NetState s) {
 
 void NetworkManager::startDiscovery(unsigned short port) {
     discoveryPort = port;
+
+    udpSocket.unbind();
     if (udpSocket.bind(discoveryPort) != sf::Socket::Status::Done) {
-        if (onStatusMessage) onStatusMessage("Could not bind discovery port");
+        if (onStatusMessage) onStatusMessage("Could not bind UDP port " + std::to_string(port));
         return;
     }
     udpSocket.setBlocking(false);
-    setState(NetState::DISCOVERING);
-    broadcastClock.restart();
 
+    tcpListener.close();
     if (tcpListener.listen(discoveryPort) != sf::Socket::Status::Done) {
-        if (onStatusMessage) onStatusMessage("Could not listen on port");
+        if (onStatusMessage) onStatusMessage("Could not listen on TCP port " + std::to_string(port));
     } else {
         tcpListener.setBlocking(false);
     }
+
+    setState(NetState::DISCOVERING);
+    broadcastClock.restart();
+    peers.clear();
+
+    broadcastAddr = getSubnetBroadcast();
+    if (onStatusMessage) onStatusMessage("Broadcast address: " + broadcastAddr.toString());
 
     sendBroadcast();
 }
@@ -72,7 +113,10 @@ void NetworkManager::updateDiscovery() {
 
 void NetworkManager::sendBroadcast() {
     std::string msg = "CHESS_LAN_DISCOVER";
-    udpSocket.send(msg.data(), msg.size(), sf::IpAddress::Broadcast, discoveryPort);
+    auto status = udpSocket.send(msg.data(), msg.size(), broadcastAddr, discoveryPort);
+    if (status != sf::Socket::Status::Done) {
+        if (onStatusMessage) onStatusMessage("Broadcast send failed");
+    }
 }
 
 void NetworkManager::receiveDiscoveryReplies() {
@@ -84,15 +128,15 @@ void NetworkManager::receiveDiscoveryReplies() {
     while (udpSocket.receive(buf, sizeof(buf) - 1, received, sender, senderPort) == sf::Socket::Status::Done) {
         if (received > 0 && sender.has_value()) {
             buf[received] = '\0';
-            processUDPMessage(std::string(buf), *sender);
+            processUDPMessage(std::string(buf), *sender, senderPort);
         }
     }
 }
 
-void NetworkManager::processUDPMessage(const std::string& msg, const sf::IpAddress& sender) {
+void NetworkManager::processUDPMessage(const std::string& msg, const sf::IpAddress& sender, unsigned short senderPort) {
     if (msg == "CHESS_LAN_DISCOVER") {
         std::string reply = "CHESS_LAN_HERE:" + playerName;
-        udpSocket.send(reply.data(), reply.size(), sender, discoveryPort);
+        udpSocket.send(reply.data(), reply.size(), sender, senderPort);
     } else if (msg.find("CHESS_LAN_HERE:") == 0) {
         std::string name = msg.substr(14);
         if (name == playerName) return;
