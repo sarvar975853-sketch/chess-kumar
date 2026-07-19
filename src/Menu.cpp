@@ -271,6 +271,10 @@ void Menu::updateBounds() {
 }
 
 void Menu::setScreen(MenuScreen screen) {
+    transitionFrom = currentScreen;
+    transitionActive = true;
+    transitionClock.restart();
+
     if (screen == SCREEN_MAIN) buildMain();
     else if (screen == SCREEN_BOT_SELECT) buildBotSelect();
     else if (screen == SCREEN_SETTINGS) buildSettings();
@@ -731,6 +735,23 @@ void Menu::draw(sf::RenderWindow& window) {
             x.setPosition(sf::Vector2f((float)(margin + btnSize / 2),
                                         (float)(margin + btnSize / 2 - 1)));
             window.draw(x);
+        }
+    }
+
+    // Screen transition overlay (fade-in)
+    if (transitionActive) {
+        float elapsed = transitionClock.getElapsedTime().asSeconds();
+        float duration = 0.25f;
+        if (elapsed >= duration) {
+            transitionActive = false;
+        } else {
+            float t = elapsed / duration;
+            // Quick fade-in: start dark, quickly become transparent
+            float alpha = 255.0f * (1.0f - t * t);
+            sf::RectangleShape overlay(sf::Vector2f((float)winW, (float)winH));
+            overlay.setFillColor(sf::Color(20, 18, 22, static_cast<std::uint8_t>(alpha)));
+            overlay.setPosition(sf::Vector2f(0, 0));
+            window.draw(overlay);
         }
     }
 }

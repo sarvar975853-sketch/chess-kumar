@@ -451,6 +451,14 @@ void Game::init() {
     drawByRepetition = false;
     drawByInsufficientMaterial = false;
     moveHistory.clear();
+    moveHighlightClock.restart();
+    checkPulseClock.restart();
+    gameOverClock.restart();
+    gameOverAlpha = 0;
+    captureFlashRow = captureFlashCol = -1;
+    moveTrail.active = false;
+    boardEntranceClock.restart();
+    boardEntranceDone = false;
     openingHistory.clear();
     openingBook.clearCache();
     annotations.clear();
@@ -559,8 +567,20 @@ void Game::completeMove(const Move& move) {
     emitMoveParticles(move.fromRow, move.fromCol, move.toRow, move.toCol);
     if (wasCapture) {
         emitCaptureParticles(move.toRow, move.toCol);
+        captureFlashRow = move.toRow;
+        captureFlashCol = move.toCol;
+        captureFlashClock.restart();
         triggerShake(4.0f);
     }
+
+    // Move trail
+    moveTrail.fromRow = move.fromRow;
+    moveTrail.fromCol = move.fromCol;
+    moveTrail.toRow = move.toRow;
+    moveTrail.toCol = move.toCol;
+    moveTrail.clock.restart();
+    moveTrail.active = true;
+    moveTrail.color = wasCapture ? sf::Color(255, 200, 100, 200) : sf::Color(200, 220, 255, 200);
 
     if (audio) {
         if (wasCapture) audio->playCapture();
@@ -652,6 +672,7 @@ void Game::completeMove(const Move& move) {
 
     // Auto-save game when it ends
     if (gameOver) {
+        gameOverClock.restart();
         saveGame();
     }
 }
@@ -1095,7 +1116,11 @@ void Game::handleEvent(const sf::Event& event, sf::RenderWindow& window) {
         return;
     }
     if (flipBtnBounds.contains({(float)mx, (float)my})) {
-        boardFlipped = !boardFlipped;
+        if (!flipAnimating) {
+            flipAnimating = true;
+            flipProgress = 0.0f;
+            flipClock.restart();
+        }
         return;
     }
     if (coordBtnBounds.contains({(float)mx, (float)my})) {
@@ -1354,12 +1379,14 @@ void Game::update(sf::RenderWindow& window) {
             if (netMove.fromRow == -2) {
                 // Opponent resigned — we win
                 gameOver = true;
+                gameOverClock.restart();
                 result = (playerColor == WHITE) ? RESULT_WHITE_WINS : RESULT_BLACK_WINS;
                 return;
             }
             if (netMove.fromRow == -3) {
                 // Draw accepted
                 gameOver = true;
+                gameOverClock.restart();
                 result = RESULT_DRAW;
                 return;
             }
@@ -1410,6 +1437,19 @@ void Game::draw(sf::RenderWindow& window) {
     sf::Vector2f shakeOff = getShakeOffset();
     sf::View shakeView = window.getDefaultView();
     shakeView.move(shakeOff);
+
+    // Board flip animation
+    if (flipAnimating) {
+        float elapsed = flipClock.getElapsedTime().asSeconds();
+        float t = std::min(elapsed / FLIP_DURATION, 1.0f);
+        if (t >= 1.0f) {
+            flipAnimating = false;
+            boardFlipped = !boardFlipped;
+        } else {
+            flipProgress = t;
+        }
+    }
+
     window.setView(shakeView);
 
     bool dm = !settings || settings->darkMode;
@@ -1469,11 +1509,34 @@ void Game::draw(sf::RenderWindow& window) {
 
         drawReviewOverlay(window);
     } else {
+        // Apply flip scale to board area
+        if (flipAnimating) {
+            float t = flipProgress;
+            float scaleX = (t < 0.5f) ? (1.0f - t * 2.0f) : ((t - 0.5f) * 2.0f);
+            scaleX = std::max(0.02f, scaleX);
+
+            float boardCenterX = boardX + boardSize / 2.0f;
+            float boardCenterY = boardY + boardSize / 2.0f;
+
+            sf::View boardView = window.getDefaultView();
+            boardView.move(shakeOff);
+            boardView.setCenter(sf::Vector2f(boardCenterX, boardCenterY));
+            boardView.setSize(sf::Vector2f((float)winW * scaleX, (float)winH));
+            window.setView(boardView);
+        }
+
         drawBoard(window);
         drawCoordinates(window);
         drawLastMove(window);
         drawSelection(window);
         drawPieces(window);
+        drawCaptureFlash(window);
+
+        // Restore normal view for non-board elements
+        if (flipAnimating) {
+            window.setView(shakeView);
+        }
+
         drawSidePanel(window);
         drawMoveHistory(window);
 
@@ -1844,7 +1907,8 @@ void Game::drawBoard(sf::RenderWindow& window) {
 void Game::drawLastMove(sf::RenderWindow& window) {
     if (!hasLastMove) return;
     const auto& th = settings ? settings->getTheme() : BOARD_THEMES[0];
-    sf::Color highlight(th.accentR, th.accentG, th.accentB, 70);
+    float pulse = 0.6f + 0.4f * std::sin(moveHighlightClock.getElapsedTime().asSeconds() * 4.0f);
+    sf::Color highlight(th.accentR, th.accentG, th.accentB, static_cast<std::uint8_t>(70 * pulse + 30));
 
     for (int r : {lastFromRow, lastToRow}) {
         int c = (r == lastFromRow) ? lastFromCol : lastToCol;
@@ -1854,6 +1918,32 @@ void Game::drawLastMove(sf::RenderWindow& window) {
         sq.setFillColor(highlight);
         sq.setPosition(sf::Vector2f(boardX + dc * squareSize, boardY + dr * squareSize));
         window.draw(sq);
+    }
+
+    // Draw move trail (line from origin to destination)
+    if (moveTrail.active) {
+        float t = moveTrail.clock.getElapsedTime().asSeconds() / moveTrail.duration;
+        if (t >= 1.0f) { moveTrail.active = false; }
+        else {
+            int fdr = boardFlipped ? (7 - moveTrail.fromRow) : moveTrail.fromRow;
+            int fdc = boardFlipped ? (7 - moveTrail.fromCol) : moveTrail.fromCol;
+            int tdr = boardFlipped ? (7 - moveTrail.toRow) : moveTrail.toRow;
+            int tdc = boardFlipped ? (7 - moveTrail.toCol) : moveTrail.toCol;
+            float fx = boardX + fdc * squareSize + squareSize / 2.0f;
+            float fy = boardY + fdr * squareSize + squareSize / 2.0f;
+            float tx = boardX + tdc * squareSize + squareSize / 2.0f;
+            float ty = boardY + tdr * squareSize + squareSize / 2.0f;
+            float cx = fx + (tx - fx) * t;
+            float cy = fy + (ty - fy) * t;
+            float fadeAlpha = 200.0f * (1.0f - t);
+            sf::Color trailCol = moveTrail.color;
+            trailCol.a = static_cast<std::uint8_t>(fadeAlpha);
+            sf::Vertex line[2] = {
+                {sf::Vector2f(fx, fy), trailCol},
+                {sf::Vector2f(cx, cy), sf::Color(trailCol.r, trailCol.g, trailCol.b, 0)}
+            };
+            window.draw(line, 2, sf::PrimitiveType::Lines);
+        }
     }
 }
 
@@ -1891,12 +1981,23 @@ void Game::drawPieces(sf::RenderWindow& window) {
             window.draw(sp);
 
             if (pt == KING && !gameOver && board.isInCheck(c)) {
+                float checkPulse = 0.5f + 0.5f * std::sin(checkPulseClock.getElapsedTime().asSeconds() * 6.0f);
+                sf::Color checkColor(200, 60, 60, static_cast<std::uint8_t>(120 + 100 * checkPulse));
+                float checkThick = 2.0f + 2.0f * checkPulse;
                 sf::CircleShape glow(squareSize * 0.55f);
                 glow.setFillColor(sf::Color::Transparent);
-                glow.setOutlineColor(sf::Color(200, 60, 60, 200));
-                glow.setOutlineThickness(3);
+                glow.setOutlineColor(checkColor);
+                glow.setOutlineThickness(checkThick);
                 glow.setPosition(sf::Vector2f(px, py));
                 window.draw(glow);
+
+                // Second pulsing ring (larger, more subtle)
+                sf::CircleShape glow2(squareSize * 0.65f);
+                glow2.setFillColor(sf::Color::Transparent);
+                glow2.setOutlineColor(sf::Color(200, 60, 60, static_cast<std::uint8_t>(40 * checkPulse)));
+                glow2.setOutlineThickness(1.5f);
+                glow2.setPosition(sf::Vector2f(px, py));
+                window.draw(glow2);
             }
         }
     }
@@ -1932,6 +2033,37 @@ void Game::drawPieces(sf::RenderWindow& window) {
             window.draw(sp);
         }
     }
+}
+
+void Game::drawCaptureFlash(sf::RenderWindow& window) {
+    if (captureFlashRow < 0 || captureFlashCol < 0) return;
+    float elapsed = captureFlashClock.getElapsedTime().asSeconds();
+    if (elapsed > 0.35f) { captureFlashRow = captureFlashCol = -1; return; }
+
+    float t = elapsed / 0.35f;
+    float alpha = 180.0f * (1.0f - t);
+    float radius = squareSize * 0.3f + squareSize * 0.5f * t;
+
+    int dr = boardFlipped ? (7 - captureFlashRow) : captureFlashRow;
+    int dc = boardFlipped ? (7 - captureFlashCol) : captureFlashCol;
+    float cx = boardX + dc * squareSize + squareSize / 2.0f;
+    float cy = boardY + dr * squareSize + squareSize / 2.0f;
+
+    // Expanding white ring
+    sf::CircleShape ring(radius);
+    ring.setFillColor(sf::Color::Transparent);
+    ring.setOutlineColor(sf::Color(255, 240, 200, static_cast<std::uint8_t>(alpha)));
+    ring.setOutlineThickness(2.5f * (1.0f - t));
+    ring.setOrigin(sf::Vector2f(radius, radius));
+    ring.setPosition(sf::Vector2f(cx, cy));
+    window.draw(ring);
+
+    // Inner flash
+    sf::CircleShape flash(radius * 0.5f);
+    flash.setFillColor(sf::Color(255, 255, 220, static_cast<std::uint8_t>(alpha * 0.4f)));
+    flash.setOrigin(sf::Vector2f(flash.getRadius(), flash.getRadius()));
+    flash.setPosition(sf::Vector2f(cx, cy));
+    window.draw(flash);
 }
 
 void Game::drawSelection(sf::RenderWindow& window) {
@@ -2367,21 +2499,33 @@ void Game::drawGameOver(sf::RenderWindow& window) {
     int cx = boardX + boardSize / 2;
     int cy = boardY + boardSize / 2;
 
-    // Dim overlay
+    // Fade-in animation
+    float elapsed = gameOverClock.getElapsedTime().asSeconds();
+    float fadeT = std::min(elapsed / 0.6f, 1.0f);
+    fadeT = fadeT * fadeT * (3.0f - 2.0f * fadeT); // smoothstep
+    gameOverAlpha = fadeT;
+
+    // Card slide-up animation
+    float slideT = std::min(elapsed / 0.5f, 1.0f);
+    slideT = slideT * slideT * (3.0f - 2.0f * slideT);
+    float slideOffset = 40.0f * (1.0f - slideT);
+
+    // Dim overlay with fade
     sf::RectangleShape overlay(sf::Vector2f(boardSize, boardSize));
-    overlay.setFillColor(sf::Color(0, 0, 0, 160));
+    overlay.setFillColor(sf::Color(0, 0, 0, static_cast<std::uint8_t>(160 * fadeT)));
     overlay.setPosition(sf::Vector2f(boardX, boardY));
     window.draw(overlay);
 
-    // Bigger result card
-    drawFilledRoundRect(window, cx - 200, cy - 100, 400, 230, 16,
-                        sf::Color(30, 24, 20, 240));
+    // Result card (slides up + fades in)
+    float cardY = cy - 100 + slideOffset;
+    drawFilledRoundRect(window, cx - 200, cardY, 400, 230, 16,
+                        sf::Color(30, 24, 20, static_cast<std::uint8_t>(240 * fadeT)));
 
     sf::RectangleShape resultBorder(sf::Vector2f(398, 228));
     resultBorder.setFillColor(sf::Color::Transparent);
-    resultBorder.setOutlineColor(sf::Color(212, 175, 55, 80));
+    resultBorder.setOutlineColor(sf::Color(212, 175, 55, static_cast<std::uint8_t>(80 * fadeT)));
     resultBorder.setOutlineThickness(1);
-    resultBorder.setPosition(sf::Vector2f(cx - 199, cy - 99));
+    resultBorder.setPosition(sf::Vector2f(cx - 199, cardY + 1));
     window.draw(resultBorder);
 
     // ── Result title ──
@@ -2392,23 +2536,23 @@ void Game::drawGameOver(sf::RenderWindow& window) {
             resultText = (playerColor == WHITE) ? "You Win!" : (botName + " Wins!");
         else
             resultText = "White Wins!";
-        resultColor = sf::Color(220, 200, 170, 255);
+        resultColor = sf::Color(220, 200, 170, static_cast<std::uint8_t>(255 * fadeT));
     } else if (result == RESULT_BLACK_WINS) {
         if (mode == MODE_VS_BOT)
             resultText = (playerColor == BLACK) ? "You Win!" : (botName + " Wins!");
         else
             resultText = "Black Wins!";
-        resultColor = sf::Color(180, 150, 200, 255);
+        resultColor = sf::Color(180, 150, 200, static_cast<std::uint8_t>(255 * fadeT));
     } else {
         resultText = "Draw";
-        resultColor = sf::Color(200, 200, 200, 255);
+        resultColor = sf::Color(200, 200, 200, static_cast<std::uint8_t>(255 * fadeT));
     }
 
     sf::Text titleText(*font, resultText, 32);
     titleText.setFillColor(resultColor);
     sf::FloatRect tb = titleText.getLocalBounds();
     titleText.setOrigin(sf::Vector2f(tb.size.x / 2, tb.size.y / 2));
-    titleText.setPosition(sf::Vector2f(cx, cy - 82));
+    titleText.setPosition(sf::Vector2f(cx, cardY + 18));
     window.draw(titleText);
 
     // ── Subtext ──
@@ -2420,10 +2564,10 @@ void Game::drawGameOver(sf::RenderWindow& window) {
     else if (drawByInsufficientMaterial) subText = "by insufficient material";
     if (!subText.empty()) {
         sf::Text subT(*font, subText, 13);
-        subT.setFillColor(sf::Color(200, 200, 200, 160));
+        subT.setFillColor(sf::Color(200, 200, 200, static_cast<std::uint8_t>(160 * fadeT)));
         sf::FloatRect sb = subT.getLocalBounds();
         subT.setOrigin(sf::Vector2f(sb.size.x / 2, sb.size.y / 2));
-        subT.setPosition(sf::Vector2f(cx, cy - 58));
+        subT.setPosition(sf::Vector2f(cx, cardY + 42));
         window.draw(subT);
     }
 
@@ -2438,32 +2582,32 @@ void Game::drawGameOver(sf::RenderWindow& window) {
         + "  \u00b7  " + std::to_string(capturesByWhite + capturesByBlack) + " capture" + ((capturesByWhite + capturesByBlack) == 1 ? "" : "s");
 
     sf::Text statsT(*font, statsStr, 12);
-    statsT.setFillColor(sf::Color(160, 140, 100, 180));
+    statsT.setFillColor(sf::Color(160, 140, 100, static_cast<std::uint8_t>(180 * fadeT)));
     sf::FloatRect stb = statsT.getLocalBounds();
     statsT.setOrigin(sf::Vector2f(stb.size.x / 2, stb.size.y / 2));
-    statsT.setPosition(sf::Vector2f(cx, cy - 34));
+    statsT.setPosition(sf::Vector2f(cx, cardY + 66));
     window.draw(statsT);
 
     // ── Captures breakdown ──
     std::string capStr = "White: " + std::to_string(capturesByWhite) + "  |  Black: " + std::to_string(capturesByBlack);
     sf::Text capT(*font, capStr, 11);
-    capT.setFillColor(sf::Color(140, 120, 80, 160));
+    capT.setFillColor(sf::Color(140, 120, 80, static_cast<std::uint8_t>(160 * fadeT)));
     sf::FloatRect cb = capT.getLocalBounds();
     capT.setOrigin(sf::Vector2f(cb.size.x / 2, cb.size.y / 2));
-    capT.setPosition(sf::Vector2f(cx, cy - 16));
+    capT.setPosition(sf::Vector2f(cx, cardY + 84));
     window.draw(capT);
 
     // ── Move history (last 6) ──
     int maxLines = 6;
     int start = std::max(0, (int)moveHistory.size() - maxLines);
     int lineCount = std::min(maxLines, (int)moveHistory.size());
-    float histY = cy - 4;
+    float histY = cardY + 96;
     float lineH = 11.0f;
     for (int i = 0; i < lineCount; ++i) {
         int idx = start + i;
         std::string label = std::to_string(idx / 2 + 1) + (idx % 2 == 0 ? ". " : ".. ") + moveHistory[idx];
         sf::Text t(*font, label, 10);
-        t.setFillColor(sf::Color(180, 160, 130, 200));
+        t.setFillColor(sf::Color(180, 160, 130, static_cast<std::uint8_t>(200 * fadeT)));
         sf::FloatRect lb = t.getLocalBounds();
         t.setOrigin(sf::Vector2f(lb.size.x / 2.0f, 0));
         t.setPosition(sf::Vector2f(cx, histY + i * lineH));
@@ -2478,17 +2622,17 @@ void Game::drawGameOver(sf::RenderWindow& window) {
 
     drawFilledRoundRect(window, playAgainBtnBounds.position.x, playAgainBtnBounds.position.y,
                         playAgainBtnBounds.size.x, playAgainBtnBounds.size.y, 10,
-                        paHover ? sf::Color(70, 60, 50, 230) : sf::Color(55, 45, 35, 200));
+                        paHover ? sf::Color(70, 60, 50, static_cast<std::uint8_t>(230 * fadeT)) : sf::Color(55, 45, 35, static_cast<std::uint8_t>(200 * fadeT)));
 
     sf::RectangleShape paBorder(sf::Vector2f(258, 32));
     paBorder.setFillColor(sf::Color::Transparent);
-    paBorder.setOutlineColor(paHover ? sf::Color(212, 175, 55, 180) : sf::Color(212, 175, 55, 80));
+    paBorder.setOutlineColor(paHover ? sf::Color(212, 175, 55, static_cast<std::uint8_t>(180 * fadeT)) : sf::Color(212, 175, 55, static_cast<std::uint8_t>(80 * fadeT)));
     paBorder.setOutlineThickness(1);
     paBorder.setPosition(sf::Vector2f(cx - 129, buttonAreaTop + 1));
     window.draw(paBorder);
 
     sf::Text paText(*font, "Play Again", 14);
-    paText.setFillColor(paHover ? sf::Color(220, 200, 170, 255) : sf::Color(180, 160, 130, 220));
+    paText.setFillColor(paHover ? sf::Color(220, 200, 170, static_cast<std::uint8_t>(255 * fadeT)) : sf::Color(180, 160, 130, static_cast<std::uint8_t>(220 * fadeT)));
     sf::FloatRect ptb = paText.getLocalBounds();
     paText.setPosition(sf::Vector2f(
         playAgainBtnBounds.position.x + playAgainBtnBounds.size.x / 2.0f - ptb.size.x / 2.0f,
@@ -2503,10 +2647,10 @@ void Game::drawGameOver(sf::RenderWindow& window) {
 
     drawFilledRoundRect(window, reviewBtnBounds.position.x, reviewBtnBounds.position.y,
                         reviewBtnBounds.size.x, reviewBtnBounds.size.y, 8,
-                        revHover ? sf::Color(50, 70, 90, 240) : sf::Color(40, 55, 70, 180));
+                        revHover ? sf::Color(50, 70, 90, static_cast<std::uint8_t>(240 * fadeT)) : sf::Color(40, 55, 70, static_cast<std::uint8_t>(180 * fadeT)));
 
     sf::Text revText(*font, "Review Game", 12);
-    revText.setFillColor(sf::Color(200, 220, 240, 230));
+    revText.setFillColor(sf::Color(200, 220, 240, static_cast<std::uint8_t>(230 * fadeT)));
     sf::FloatRect rtb = revText.getLocalBounds();
     revText.setPosition(sf::Vector2f(
         reviewBtnBounds.position.x + reviewBtnBounds.size.x / 2.0f - rtb.size.x / 2.0f,
@@ -2521,10 +2665,10 @@ void Game::drawGameOver(sf::RenderWindow& window) {
 
     drawFilledRoundRect(window, exitBtnBounds.position.x, exitBtnBounds.position.y,
                         exitBtnBounds.size.x, exitBtnBounds.size.y, 8,
-                        exitHover ? sf::Color(180, 70, 70, 240) : sf::Color(140, 50, 50, 180));
+                        exitHover ? sf::Color(180, 70, 70, static_cast<std::uint8_t>(240 * fadeT)) : sf::Color(140, 50, 50, static_cast<std::uint8_t>(180 * fadeT)));
 
     sf::Text exitText(*font, "Exit to Menu", 12);
-    exitText.setFillColor(sf::Color(240, 220, 220, 230));
+    exitText.setFillColor(sf::Color(240, 220, 220, static_cast<std::uint8_t>(230 * fadeT)));
     sf::FloatRect etb = exitText.getLocalBounds();
     exitText.setPosition(sf::Vector2f(
         exitBtnBounds.position.x + exitBtnBounds.size.x / 2.0f - etb.size.x / 2.0f,

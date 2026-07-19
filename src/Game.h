@@ -198,6 +198,7 @@ private:
     void drawBoard(sf::RenderWindow& window);
     void drawLastMove(sf::RenderWindow& window);
     void drawPieces(sf::RenderWindow& window);
+    void drawCaptureFlash(sf::RenderWindow& window);
     void drawSelection(sf::RenderWindow& window);
     void drawSidePanel(sf::RenderWindow& window);
     void drawCapturedPiecesAt(sf::RenderWindow& window, const std::vector<CapturedPiece>& pieces,
@@ -250,6 +251,40 @@ private:
     sf::Clock shakeClock;
     void triggerShake(float intensity);
     sf::Vector2f getShakeOffset();
+
+    // Move highlight pulse
+    sf::Clock moveHighlightClock;
+
+    // Check king pulse
+    sf::Clock checkPulseClock;
+
+    // Game over fade-in
+    float gameOverAlpha = 0;
+    sf::Clock gameOverClock;
+
+    // Board flip animation
+    bool flipAnimating = false;
+    float flipProgress = 0;
+    sf::Clock flipClock;
+    static constexpr float FLIP_DURATION = 0.35f;
+
+    // Capture flash
+    sf::Clock captureFlashClock;
+    int captureFlashRow = -1, captureFlashCol = -1;
+
+    // Move trail
+    struct MoveTrail {
+        int fromRow, fromCol, toRow, toCol;
+        sf::Clock clock;
+        float duration = 0.4f;
+        sf::Color color;
+        bool active = false;
+    };
+    MoveTrail moveTrail;
+
+    // Board entrance
+    sf::Clock boardEntranceClock;
+    bool boardEntranceDone = false;
 
     bool showCoordinates = true;
     bool boardFlipped = false;

@@ -122,6 +122,12 @@ private:
     sf::Clock ornamentClock;
     void drawOrnaments(sf::RenderWindow& window);
 
+    // Screen transition
+    sf::Clock transitionClock;
+    float transitionAlpha = 0;
+    MenuScreen transitionFrom = SCREEN_MAIN;
+    bool transitionActive = false;
+
     std::vector<std::string> peerNames;
     std::vector<std::string> peerIPs;
     int selectedPeer = -1;
