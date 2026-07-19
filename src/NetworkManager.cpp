@@ -63,6 +63,7 @@ void NetworkManager::startDiscovery(unsigned short port) {
     discoveryPort = port;
 
     udpSocket.unbind();
+    udpSocket.setReuseAddr();
     if (udpSocket.bind(discoveryPort) != sf::Socket::Status::Done) {
         if (onStatusMessage) onStatusMessage("Could not bind UDP port " + std::to_string(port));
         return;
@@ -70,6 +71,7 @@ void NetworkManager::startDiscovery(unsigned short port) {
     udpSocket.setBlocking(false);
 
     tcpListener.close();
+    tcpListener.setReuseAddr();
     if (tcpListener.listen(discoveryPort) != sf::Socket::Status::Done) {
         if (onStatusMessage) onStatusMessage("Could not listen on TCP port " + std::to_string(port));
     } else {

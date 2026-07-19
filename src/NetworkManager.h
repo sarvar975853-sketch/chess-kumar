@@ -7,6 +7,30 @@
 #include <functional>
 #include "ChessBoard.h"
 
+#ifdef __APPLE__
+#include <sys/socket.h>
+#endif
+
+class ReusableUdpSocket : public sf::UdpSocket {
+public:
+    void setReuseAddr() {
+        int fd = static_cast<int>(getNativeHandle());
+        int opt = 1;
+        setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+        setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt));
+    }
+};
+
+class ReusableTcpListener : public sf::TcpListener {
+public:
+    void setReuseAddr() {
+        int fd = static_cast<int>(getNativeHandle());
+        int opt = 1;
+        setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+        setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt));
+    }
+};
+
 struct DiscoveredPeer {
     std::string name;
     std::string ip;
@@ -62,8 +86,8 @@ private:
     NetRole role = NetRole::NONE;
     std::string opponentName;
 
-    sf::UdpSocket udpSocket;
-    sf::TcpListener tcpListener;
+    ReusableUdpSocket udpSocket;
+    ReusableTcpListener tcpListener;
     sf::TcpSocket tcpSocket;
     bool socketBlocking = false;
 
